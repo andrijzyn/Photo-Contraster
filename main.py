@@ -2,8 +2,9 @@ from PIL import Image, ImageDraw
 import numpy as np
 
 # Constants
-MARGIN_SIZE = 10
-LINE_WIDTH = 5
+LINE_WIDTH = 1
+BACKGROUND_COLOR = (255, 255, 255)
+SEPARATOR_COLOR = (0, 0, 0)
 
 
 def load_and_prepare_images(image1_path, image2_path):
@@ -15,34 +16,71 @@ def load_and_prepare_images(image1_path, image2_path):
     return img1, img2
 
 
+def crop_image_to_half(img, is_left_half):
+    """Crop the image to its left or right half."""
+    width = img.width
+    half_width = width // 2
+
+    if is_left_half:
+        return img.crop((0, 0, half_width, img.height))
+    else:
+        return img.crop((half_width, 0, width, img.height))
+
+
 def create_combined_image(img1, img2):
-    """Create a new white background image and paste the two images with a margin."""
-    width = img1.width + img2.width + MARGIN_SIZE
+    """Create a new image by combining the two halves without margin."""
+    # Get the cropped halves
+    left_half = crop_image_to_half(img1, True)
+    right_half = crop_image_to_half(img2, False)
+
+    # Create new image with exact width needed for both halves
+    width = left_half.width + right_half.width
     height = max(img1.height, img2.height)
-    combined_image = Image.new('RGB', (width, height), (255, 255, 255))
-    combined_image.paste(img1, (0, 0))
-    combined_image.paste(img2, (img1.width + MARGIN_SIZE, 0))
+    combined_image = Image.new('RGB', (width, height), BACKGROUND_COLOR)
+
+    # Paste the halves side by side
+    combined_image.paste(left_half, (0, 0))
+    combined_image.paste(right_half, (left_half.width, 0))
+
     return combined_image
 
 
-def draw_separator_line(image, img1_width, height):
-    """Draw a vertical black line between the two pasted images."""
+def draw_separator_line(image, line_color=SEPARATOR_COLOR, line_width=LINE_WIDTH):
+    """Draw a vertical line exactly in the middle of the image."""
     draw = ImageDraw.Draw(image)
-    draw.line((img1_width + MARGIN_SIZE // 2, 0, img1_width + MARGIN_SIZE // 2, height),
-              fill=(0, 0, 0), width=LINE_WIDTH)
+    center_x = image.width // 2
+
+    # Draw line in the exact center
+    draw.line(
+        [(center_x, 0), (center_x, image.height)],
+        fill=line_color,
+        width=line_width
+    )
 
 
 def create_diff_image(image1_path, image2_path, output_path):
-    """Main function to create a diff image by combining two images with a separator line."""
+    """Create a diff image without margin between halves."""
+    # Load and prepare images
     img1, img2 = load_and_prepare_images(image1_path, image2_path)
+
+    # Create combined image without margin
     combined_image = create_combined_image(img1, img2)
-    draw_separator_line(combined_image, img1.width, combined_image.height)
+
+    # Draw separator line
+    draw_separator_line(combined_image)
+
+    # Save result
     combined_image.save(output_path)
+    return combined_image
 
 
 # Usage
 image1_path = 'image1.png'
 image2_path = 'image2.png'
 output_path = 'diff_image.png'
-create_diff_image(image1_path, image2_path, output_path)
-print(f'Результат збережено як {output_path}')
+
+try:
+    result = create_diff_image(image1_path, image2_path, output_path)
+    print(f'Saved as {output_path}')
+except Exception as e:
+    print(f'Error: {str(e)}')
